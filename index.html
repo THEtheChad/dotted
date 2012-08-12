@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<canvas id="c" width="900" height="500">
+<script>
+// RULES FOR CREATING COMPACT SCRIPTS
+// 1. Avoid returns (modify original object if at all possible)
+// 2. Any object methods that get referenced multiple times should
+//    be placed in their own functions
+
+// @TODO: Remove convenience log method
+function log(){ console.log(slice(arguments)) }
+
+d     = document;
+pi    = Math.PI;
+ctx   = c.getContext("2d");
+frame = [];
+
+arrProto = Array.prototype;
+
+// Utility functions
+function slice(arr, n)           { return arrProto.slice.call(arr, n || 0)        }
+function on(el, event, listener) { el.addEventListener(event, listener, false)    }
+function off(el, event, listener){ el.removeEventListener(event, listener, false) }
+
+// Shallow extension method
+// Modifies the original object
+// @return undefined
+function extend(obj){
+  var k, src, l = arguments.length;
+  while(--l){
+    src = arguments[l]
+    for(k in src)
+       obj[k] = src[k]
+  }
+}
+
+function setClass(obj, proto, parent){
+  if(parent) obj.prototype = new parent;
+  extend(obj.prototype, proto);
+}
+
+//
+// CHARACTER CLASS
+// ---------------
+// Basic structure for a character
+// Houses location and movement props/methods
+//
+function Character(opts){
+  extend(this, opts, {
+    // DEFAULTS
+
+    // location
+    x: c.width  / 2,
+    y: c.height / 2,
+
+    // movement
+    angle   : 0,
+    velocity: 0
+  });
+}
+
+setClass(Character,{
+  move: function(){
+    var t        = this
+      , angle    = t.angle
+      , velocity = t.velocity
+    ;//var
+
+    t.x = Math.sin(angle) * velocity + t.x;
+    t.y = Math.cos(angle) * velocity + t.y;
+  }
+});
+
+//
+// DOT CLASS
+// ---------
+// Basic structure for a dot character
+// Houses appearence and tick props/methods
+//
+// @inherits Character
+//
+function Dot(opts){
+  extend(this, opts, {
+    // DEFAULTS
+
+    // appearance
+    radius: 10,
+    color : '#900'
+  });
+}
+
+setClass(Dot,{
+  // Renders the dot to the canvas
+  draw: function(){
+    var t = this;
+
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.radius, 0, 2 * pi, false);
+    ctx.fillStyle = t.color;
+    ctx.fill();
+  },
+
+  tick: function(){
+    this.move();
+  }
+}, Character)
+
+//
+// SELF CLASS
+// ----------
+// Simple dot with key controls
+//
+// @inherits Dot
+//
+function Self(opts){
+  extend(this, opts);
+
+  var t = this;
+
+  on(d, 'keydown', function(e){
+    var key = e.keyCode;
+    if(t[key]){
+      e.preventDefault();
+      t[key]();
+    }
+  });
+}
+
+setClass(Self,{
+  // Keycode for left arrow (37)
+  // Rotate left
+  37: function(){ this.angle += .3    },
+  // Keycode for right arrow (39)
+  // Rotate right
+  39: function(){ this.angle -= .3    },
+  // Keycode for up arrow (38)
+  // Increase speed
+  38: function(){ this.velocity += .5 },
+  // Keycode for down arrow (40)
+  // Decrease speed
+  40: function(){ this.velocity -= .5 }
+}, Dot)
+
+//
+// EXECUTE FRAME
+//
+
+function ANIMATE(){
+  webkitRequestAnimationFrame(ANIMATE);
+
+  // Repaint our canvas
+  ctx.clearRect(0,0,c.width,c.height);
+
+  // Render all frames
+  var l = frame.length;
+  while(l--) frame[l]()
+}
+ANIMATE();
+
+//
+// TESTS
+//
+yar = new Self();
+function render(){
+  yar.tick();
+  yar.draw();
+}
+frame.push(render);
+</script>
