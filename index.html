@@ -9,112 +9,244 @@
 // @TODO: Remove convenience log method
 function log(){ console.log(slice(arguments)) }
 
-d     = document;
-pi    = Math.PI;
-ctx   = c.getContext("2d");
-frame = [];
+d       = document;
+pi      = Math.PI;
+ctx     = c.getContext("2d");
+objects = [];
 
 arrProto = Array.prototype;
+objProto = Object.prototype;
 
 // Utility functions
+function noOp(){}
+
 function slice(arr, n)           { return arrProto.slice.call(arr, n || 0)        }
 function on(el, event, listener) { el.addEventListener(event, listener, false)    }
 function off(el, event, listener){ el.removeEventListener(event, listener, false) }
 
-// Shallow extension method
-// Modifies the original object
-// @return undefined
-function extend(obj){
+function randomPoint(){
+  return {
+    x: round(Math.random() * c.width),
+    y: round(Math.random() * c.height)
+  }
+}
+
+function round(val, decimal){
+  var x = Math.pow(10, decimal || 0);
+  return Math.round(val * x)/x;
+}
+
+//
+// Does a shallow copy of all objects
+// passed onto the target object
+//
+function extend(target){
   var k, src, l = arguments.length;
   while(--l){
     src = arguments[l]
     for(k in src)
-       obj[k] = src[k]
+       target[k] = src[k]
   }
 }
 
-function setClass(obj, proto, parent){
-  if(parent) obj.prototype = new parent;
-  extend(obj.prototype, proto);
+function setClass(constructor, proto, parent){
+  if(parent) constructor.prototype = new parent;
+  extend(constructor.prototype, proto);
 }
 
 //
-// CHARACTER CLASS
-// ---------------
-// Basic structure for a character
-// Houses location and movement props/methods
+// FX
 //
-function Character(opts){
-  extend(this, opts, {
-    // DEFAULTS
+function Pulse(color, duration){
+  var count = 0, original, flip;
 
+  return function(){
+    console.log(count, duration);
+    if(++count > duration){
+      if(flip){
+        original = this.color;
+        this.color = color;
+        flip = false;
+      }
+      else{
+        this.color = original;
+        flip = true;
+      }
+      count = 0;
+    }
+  }
+}
+
+function Translate(){
+  var t        = this
+    , angle    = t.angle
+    , velocity = t.velocity
+  ;//var
+
+  t.history.x = t.x;
+  t.history.y = t.y;
+
+  t.x = Math.sin(angle) * velocity + t.x;
+  t.y = Math.cos(angle) * velocity + t.y;
+}
+
+//
+// POINT CLASS
+// ---------------
+//
+function Point(opts){
+  extend(this, opts, {
     // location
     x: c.width  / 2,
     y: c.height / 2,
 
-    // movement
+    // direction and speed
     angle   : 0,
-    velocity: 0
-  });
-}
+    velocity: 0,
 
-setClass(Character,{
-  move: function(){
-    var t        = this
-      , angle    = t.angle
-      , velocity = t.velocity
+    // visual properties
+    radius  : 1,
+    color   : '#000',
+
+    onTick  : []
+  })
+}
+setClass(Point,{
+  tick: function(){
+    var t    = this
+      , list = t.onTick
+      , l    = list.length
     ;//var
 
-    t.x = Math.sin(angle) * velocity + t.x;
-    t.y = Math.cos(angle) * velocity + t.y;
+    t.history = {};
+    while(l--) list[l].call(t);
+  },
+  render: function(){
+    ctx.beginPath();
+    this.draw();
+  },
+  revert: function(){
+    extend(this, this.history);
+  },
+  draw: noOp,
+  hit:  noOp
+})
+
+//
+// METER CLASS
+// -----------
+//
+function Meter(opts){
+  var t = this;
+
+  extend(t,opts,{
+    x: 20,
+    y: 20,
+    height  : 20,
+    width   : 250,
+    padding : 4,
+    percent : 1,
+    _percent: 1,
+    rate    : .01
+  })
+
+  t.onTick.push(t.calcSize);
+}
+setClass(Meter,{
+  draw: function(){
+    var t = this;
+
+    // draw meter
+    ctx.fillStyle = t.color;
+    ctx.fillRect(t.x,t.y,t.width * t._percent,t.height);
+
+    // draw outline
+    ctx.strokeStyle = t.color;
+    ctx.strokeRect(
+      t.x - t.padding,
+      t.y - t.padding,
+      t.width + 2 * t.padding,
+      t.height + 2 * t.padding
+    )
+  },
+  inc: function(val){
+    this.percent = round(this.percent + (val || .01), 2)
+  },
+  dec: function(val){
+    this.percent = round(this.percent - (val || .01), 2)
+  },
+  calcSize: function(){
+    var t = this;
+    if(t._percent > t.percent)
+      t._percent = round(t._percent - t.rate, 2);
+    else if(t._percent < t.percent)
+      t._percent = round(t._percent + t.rate, 2);
   }
-});
+},Point);
+
+//
+// HEALTH
+// ------
+//
+function Health(opts){
+  this.onTick.push(this.calcHealth)
+}
+setClass(Health,{
+  calcHealth: function(){
+    var t = this;
+    if(t._percent < .4)
+      t.color = '#900';
+    else
+      t.color = '#000';
+  }
+}, Meter)
 
 //
 // DOT CLASS
 // ---------
-// Basic structure for a dot character
-// Houses appearence and tick props/methods
-//
-// @inherits Character
 //
 function Dot(opts){
-  extend(this, opts, {
-    // DEFAULTS
+  var t = this;
 
-    // appearance
-    radius: 10,
-    color : '#900'
+  extend(t,opts,{
+    radius: 10
   });
-}
 
+  t.onTick.push(Translate)
+}
 setClass(Dot,{
-  // Renders the dot to the canvas
   draw: function(){
     var t = this;
 
-    ctx.beginPath();
     ctx.arc(t.x, t.y, t.radius, 0, 2 * pi, false);
     ctx.fillStyle = t.color;
     ctx.fill();
-  },
-
-  tick: function(){
-    this.move();
   }
-}, Character)
+},Point)
+
+//
+//
+//
+//
+function Bomb(opts){
+  extend(this,opts,{
+    color: '#009'
+  }, randomPoint())
+}
+setClass(Bomb,{
+  hit: function(){
+    health.dec()
+  }
+}, Dot)
 
 //
 // SELF CLASS
 // ----------
-// Simple dot with key controls
-//
-// @inherits Dot
 //
 function Self(opts){
-  extend(this, opts);
-
   var t = this;
+
+  extend(t,opts);
 
   on(d, 'keydown', function(e){
     var key = e.keyCode;
@@ -124,7 +256,6 @@ function Self(opts){
     }
   });
 }
-
 setClass(Self,{
   // Keycode for left arrow (37)
   // Rotate left
@@ -141,28 +272,53 @@ setClass(Self,{
 }, Dot)
 
 //
-// EXECUTE FRAME
+// 
 //
 
+//
+// EXECUTE FRAME
+//
 function ANIMATE(){
   webkitRequestAnimationFrame(ANIMATE);
 
-  // Repaint our canvas
+  // Clear our canvas
   ctx.clearRect(0,0,c.width,c.height);
 
-  // Render all frames
-  var l = frame.length;
-  while(l--) frame[l]()
+  //
+  // MANAGE OBJECTS
+  //
+  var i, j, l = objects.length;
+
+  // Transform objects
+  i = l
+  while(i--)
+    objects[i].tick();
+
+  // Collision detection
+  // i = l
+  // while(i--){
+  //   j = i
+  //   while(j--){
+  //     var ob1 = objects[i]
+  //       , ob2 = objects[j]
+  //     ;//var
+
+  //   }
+  // }
+      
+
+  // Render objects
+  i = l
+  while(i--)
+    objects[i].render();
 }
 ANIMATE();
 
 //
 // TESTS
 //
-yar = new Self();
-function render(){
-  yar.tick();
-  yar.draw();
-}
-frame.push(render);
+objects.push(self = new Self)
+objects.push(health = new Health)
+objects.push(yar = new Bomb)
+objects.push(car = new Bomb)
 </script>
