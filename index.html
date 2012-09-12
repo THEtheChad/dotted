@@ -9,36 +9,86 @@
 // @TODO: Remove convenience log method
 function log(){ console.log(slice(arguments)) }
 
-d       = document;
-pi      = Math.PI;
-ctx     = c.getContext("2d");
-objects = [];
-
+//
+// GLOBAL SHORTCUTS
+//
+w        = window;
+d        = document;
+pi       = Math.PI;
+ctx      = c.getContext("2d");
+objects  = [];
 arrProto = Array.prototype;
 objProto = Object.prototype;
 
-// Utility functions
-function noOp(){}
+// Cross browser normalization
+animationFrame =
+  w.requestAnimationFrame       ||
+  w.mozRequestAnimationFrame    ||
+  w.webkitRequestAnimationFrame
+;//animationFrame
 
-function slice(arr, n)           { return arrProto.slice.call(arr, n || 0)        }
-function on(el, event, listener) { el.addEventListener(event, listener, false)    }
-function off(el, event, listener){ el.removeEventListener(event, listener, false) }
+//
+// ARRAY UTILITY
+//
+function slice(arr, n) { return arrProto.slice.call(arr, n || 0) }
 
-function randomPoint(){
-  return {
-    x: round(Math.random() * c.width),
-    y: round(Math.random() * c.height)
-  }
-}
+//
+// EVENT UTILITY
+//
+function on(el, event, listener)  { el.addEventListener(event, listener, false)    }
+function off(el, event, listener) { el.removeEventListener(event, listener, false) }
 
+//
+// MATH UTILITY
+//
 function round(val, decimal){
   var x = Math.pow(10, decimal || 0);
   return Math.round(val * x)/x;
 }
 
 //
+// GRID UTILITY
+//
+function randomPoint(){
+  return {
+    x: round( Math.random() * c.width  ),
+    y: round( Math.random() * c.height )
+  }
+}
+
+//
+// TRIG MAGIC
+//
+function c2(p)    { return p.x*p.x + p.y*p.y }
+function hypot(p) { Math.sqrt(c2(p))         }
+
+//
+// VECTOR MAGIC
+//
+function vector(a, b)      { return {x: b.x - a.x, y: b.y - a.y}           }
+function vRightNorm(v)     { return {x: -v.y     , y: v.x  }               }
+function vLeftNorm(v)      { return {x: v.y      , y: -v.x }               } 
+function vNormalize(v)     { var l = hypot(v); return {x: v.x/l, y: v.y/l} }
+function vDotProduct(a, b) { return a.x*b.x + a.y*b.y }
+function vProjection(a, b) {
+  var dp = vDotProduct(a,b)
+    , c2 = c2(b)
+  ;//var
+
+  return {
+    x: ( dp / c2 ) * b.x,
+    y: ( dp / c2 ) * b.y
+  }
+}
+
+
+
+
+
+
+//
 // Does a shallow copy of all objects
-// passed onto the target object
+// onto the target object
 //
 function extend(target){
   var k, src, l = arguments.length;
@@ -91,10 +141,10 @@ function Translate(){
 }
 
 //
-// POINT CLASS
+// BASE CLASS
 // ---------------
 //
-function Point(opts){
+function Base(opts){
   extend(this, opts, {
     // location
     x: c.width  / 2,
@@ -111,7 +161,7 @@ function Point(opts){
     onTick  : []
   })
 }
-setClass(Point,{
+setClass(Base,{
   tick: function(){
     var t    = this
       , list = t.onTick
@@ -127,9 +177,7 @@ setClass(Point,{
   },
   revert: function(){
     extend(this, this.history);
-  },
-  draw: noOp,
-  hit:  noOp
+  }
 })
 
 //
@@ -182,7 +230,7 @@ setClass(Meter,{
     else if(t._percent < t.percent)
       t._percent = round(t._percent + t.rate, 2);
   }
-},Point);
+},Base);
 
 //
 // HEALTH
@@ -212,6 +260,9 @@ function Dot(opts){
     radius: 10
   });
 
+  t.width  = 2 * t.radius;
+  t.height = t.width;
+
   t.onTick.push(Translate)
 }
 setClass(Dot,{
@@ -222,11 +273,11 @@ setClass(Dot,{
     ctx.fillStyle = t.color;
     ctx.fill();
   }
-},Point)
+},Base)
 
 //
-//
-//
+// BOMB CLASS
+// ----------
 //
 function Bomb(opts){
   extend(this,opts,{
@@ -279,7 +330,7 @@ setClass(Self,{
 // EXECUTE FRAME
 //
 function ANIMATE(){
-  webkitRequestAnimationFrame(ANIMATE);
+  animationFrame(ANIMATE);
 
   // Clear our canvas
   ctx.clearRect(0,0,c.width,c.height);
@@ -305,7 +356,6 @@ function ANIMATE(){
 
   //   }
   // }
-      
 
   // Render objects
   i = l
@@ -313,6 +363,14 @@ function ANIMATE(){
     objects[i].render();
 }
 ANIMATE();
+
+function proximity(a, b){
+
+
+
+
+
+}
 
 //
 // TESTS
